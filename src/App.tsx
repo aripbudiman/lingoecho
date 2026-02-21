@@ -52,9 +52,16 @@ export default function App() {
   const [loading, setLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState<Tab>('translate');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<any[]>([]);
+
+  // Close sidebar on tab change on mobile
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  }, [activeTab, currentSessionId]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -203,12 +210,33 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="flex h-screen bg-[#0a0a0a] text-white overflow-hidden relative">
+      {/* Sidebar Overlay for Mobile */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <motion.aside 
         initial={false}
-        animate={{ width: sidebarOpen ? 280 : 0, opacity: sidebarOpen ? 1 : 0 }}
-        className="bg-[#121212] border-r border-white/5 flex flex-col overflow-hidden"
+        animate={{ 
+          width: sidebarOpen ? 280 : 0, 
+          x: sidebarOpen ? 0 : -280,
+          opacity: sidebarOpen ? 1 : 0 
+        }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className={cn(
+          "bg-[#121212] border-r border-white/5 flex flex-col overflow-hidden fixed md:relative h-full z-50",
+          !sidebarOpen && "pointer-events-none"
+        )}
       >
         <div className="p-6 flex items-center gap-3">
           <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center text-black">
@@ -309,29 +337,32 @@ export default function App() {
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col bg-white text-black rounded-l-[32px] my-2 mr-2 overflow-hidden shadow-2xl relative">
-        <header className="h-16 border-b border-black/5 flex items-center justify-between px-8">
-          <div className="flex items-center gap-4">
+      <main className={cn(
+        "flex-1 flex flex-col bg-white text-black overflow-hidden relative transition-all duration-300",
+        "md:rounded-l-[32px] md:my-2 md:mr-2 shadow-2xl"
+      )}>
+        <header className="h-16 border-b border-black/5 flex items-center justify-between px-4 md:px-8 shrink-0">
+          <div className="flex items-center gap-2 md:gap-4">
             <button 
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 hover:bg-black/5 rounded-lg transition-colors"
             >
               <MessageSquare size={20} className="text-black/60" />
             </button>
-            <div className="flex items-center gap-2 text-sm font-medium text-black/60">
-              <span>LingoEcho 1.0</span>
+            <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm font-medium text-black/60">
+              <span className="truncate max-w-[100px] md:max-w-none">LingoEcho 1.0</span>
               <ChevronDown size={14} />
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <button className="p-2 hover:bg-black/5 rounded-lg transition-colors">
               <Share2 size={20} className="text-black/60" />
             </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
           <AnimatePresence mode="wait">
             {activeTab === 'translate' && <TranslateView key={currentSessionId || 'new'} userId={user.uid} sessionId={currentSessionId} onSessionCreated={setCurrentSessionId} />}
             {activeTab === 'quiz' && <QuizView key="quiz" userId={user.uid} />}
@@ -398,17 +429,18 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
   };
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto">
-      <div className="flex-1 overflow-y-auto space-y-8 pb-32 custom-scrollbar">
+    <div className="flex flex-col h-full max-w-4xl mx-auto relative">
+      <div className="flex-1 overflow-y-auto space-y-6 md:space-y-8 pb-32 custom-scrollbar px-2 md:px-0">
         {messages.length === 0 && !loading && (
-          <div className="text-center space-y-4 py-20">
-            <div className="w-16 h-16 bg-brand/10 text-brand rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <Languages size={32} />
+          <div className="text-center space-y-4 py-12 md:py-20">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-brand/10 text-brand rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-4 md:mb-6">
+              <Languages size={24} className="md:hidden" />
+              <Languages size={32} className="hidden md:block" />
             </div>
-            <h2 className="text-4xl font-bold tracking-tight text-black">
+            <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-black">
               New Translation
             </h2>
-            <p className="text-xl text-black/40 font-medium">
+            <p className="text-base md:text-xl text-black/40 font-medium px-4">
               Start by typing Indonesian text below.
             </p>
           </div>
@@ -419,12 +451,12 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
             key={idx}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            className="space-y-4 md:space-y-6"
           >
             {/* User Message */}
             <div className="flex justify-end">
-              <div className="bg-black/5 rounded-[24px] rounded-tr-none p-4 max-w-[80%]">
-                <p className="text-black/80 font-medium">{msg.indonesian}</p>
+              <div className="bg-black/5 rounded-[20px] md:rounded-[24px] rounded-tr-none p-3 md:p-4 max-w-[90%] md:max-w-[80%]">
+                <p className="text-black/80 font-medium text-sm md:text-base">{msg.indonesian}</p>
                 <div className="mt-2 flex items-center gap-2">
                   <span className={cn(
                     "px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest",
@@ -437,23 +469,23 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
             </div>
 
             {/* AI Response */}
-            <div className="space-y-4">
-              <div className="bg-brand/10 border border-brand/20 rounded-[32px] rounded-tl-none p-6 shadow-sm">
-                <div className="flex items-center gap-2 text-brand-dark mb-3 font-bold uppercase tracking-widest text-[10px]">
+            <div className="space-y-3 md:space-y-4">
+              <div className="bg-brand/10 border border-brand/20 rounded-[24px] md:rounded-[32px] rounded-tl-none p-4 md:p-6 shadow-sm">
+                <div className="flex items-center gap-2 text-brand-dark mb-2 md:mb-3 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
                   <Sparkles size={12} />
                   English Translation
                 </div>
-                <p className="text-xl font-semibold text-black leading-tight">
+                <p className="text-lg md:text-xl font-semibold text-black leading-tight">
                   {msg.english}
                 </p>
               </div>
 
-              <div className="bg-black/5 rounded-[32px] rounded-tl-none p-6 ml-4">
-                <div className="flex items-center gap-2 text-black/40 mb-3 font-bold uppercase tracking-widest text-[10px]">
+              <div className="bg-black/5 rounded-[24px] md:rounded-[32px] rounded-tl-none p-4 md:p-6 ml-2 md:ml-4">
+                <div className="flex items-center gap-2 text-black/40 mb-2 md:mb-3 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">
                   <BrainCircuit size={12} />
                   Grammar Insights
                 </div>
-                <div className="markdown-body text-black/80">
+                <div className="markdown-body text-black/80 text-sm md:text-base">
                   <Markdown>{msg.explanation}</Markdown>
                 </div>
               </div>
@@ -479,15 +511,15 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
       </div>
 
       {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-white via-white to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8 bg-gradient-to-t from-white via-white to-transparent">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white border border-black/10 rounded-[24px] p-2 shadow-xl flex items-end gap-2">
+          <div className="bg-white border border-black/10 rounded-[20px] md:rounded-[24px] p-1.5 md:p-2 shadow-xl flex items-end gap-2">
             <div className="flex-1 flex flex-col">
-              <div className="flex gap-1 p-1 mb-1">
+              <div className="flex gap-1 p-1 mb-0.5 md:mb-1">
                 <button 
                   onClick={() => setMode('casual')}
                   className={cn(
-                    "px-3 py-1 rounded-lg text-[10px] font-bold transition-all",
+                    "px-2 md:px-3 py-0.5 md:py-1 rounded-lg text-[9px] md:text-[10px] font-bold transition-all",
                     mode === 'casual' ? "bg-black/5 text-black" : "text-black/40 hover:text-black"
                   )}
                 >
@@ -496,7 +528,7 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
                 <button 
                   onClick={() => setMode('formal')}
                   className={cn(
-                    "px-3 py-1 rounded-lg text-[10px] font-bold transition-all",
+                    "px-2 md:px-3 py-0.5 md:py-1 rounded-lg text-[9px] md:text-[10px] font-bold transition-all",
                     mode === 'formal' ? "bg-black/5 text-black" : "text-black/40 hover:text-black"
                   )}
                 >
@@ -513,19 +545,20 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
                   }
                 }}
                 placeholder="Type Indonesian text here..."
-                className="w-full max-h-32 p-3 bg-transparent text-base resize-none focus:outline-none placeholder:text-black/20"
+                className="w-full max-h-32 p-2 md:p-3 bg-transparent text-sm md:text-base resize-none focus:outline-none placeholder:text-black/20"
                 rows={1}
               />
             </div>
             <button 
               onClick={handleTranslate}
               disabled={loading || !input.trim()}
-              className="p-3 bg-black text-white rounded-xl hover:bg-black/80 transition-colors disabled:opacity-50 mb-1 mr-1"
+              className="p-2.5 md:p-3 bg-black text-white rounded-lg md:rounded-xl hover:bg-black/80 transition-colors disabled:opacity-50 mb-1 mr-1"
             >
-              <Send size={20} />
+              <Send size={18} className="md:hidden" />
+              <Send size={20} className="hidden md:block" />
             </button>
           </div>
-          <p className="text-center text-[10px] text-black/20 mt-3 font-medium">
+          <p className="text-center text-[9px] md:text-[10px] text-black/20 mt-2 md:mt-3 font-medium">
             LingoEcho can make mistakes. Check important grammar rules.
           </p>
         </div>
@@ -618,28 +651,28 @@ function QuizView({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
-      <div className="text-center space-y-4 mb-12">
-        <h2 className="text-4xl font-bold tracking-tight text-black">Quiz Practice</h2>
-        <p className="text-xl text-black/40 font-medium">Master English through interactive challenges.</p>
+    <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
+      <div className="text-center space-y-2 md:space-y-4 mb-8 md:mb-12">
+        <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-black">Quiz Practice</h2>
+        <p className="text-base md:text-xl text-black/40 font-medium">Master English through interactive challenges.</p>
       </div>
 
       {questions.length === 0 ? (
-        <div className="bg-white border border-black/10 rounded-[32px] p-8 shadow-sm space-y-6">
+        <div className="bg-white border border-black/10 rounded-[24px] md:rounded-[32px] p-6 md:p-8 shadow-sm space-y-6 max-w-xl mx-auto">
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-black/40">Enter Quiz Theme</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Enter Quiz Theme</label>
             <input 
               type="text"
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               placeholder="e.g., Business Meeting, Traveling, Grammar Tenses..."
-              className="w-full p-4 bg-black/5 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-brand"
+              className="w-full p-3 md:p-4 bg-black/5 rounded-xl md:rounded-2xl text-base md:text-lg focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
           <button 
             onClick={generateQuiz}
             disabled={loading || !theme.trim()}
-            className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-black/80 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 md:py-4 bg-black text-white rounded-xl md:rounded-2xl font-bold hover:bg-black/80 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <BrainCircuit size={20} />}
             Generate Quiz
@@ -652,9 +685,9 @@ function QuizView({ userId }: { userId: string }) {
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-bold uppercase tracking-widest text-black/40">Question {currentIndex + 1} of {questions.length}</span>
-            <div className="h-2 w-32 bg-black/5 rounded-full overflow-hidden">
+          <div className="flex items-center justify-between mb-4 px-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-black/40">Question {currentIndex + 1} of {questions.length}</span>
+            <div className="h-1.5 w-24 md:w-32 bg-black/5 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-brand transition-all duration-500" 
                 style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
@@ -662,8 +695,8 @@ function QuizView({ userId }: { userId: string }) {
             </div>
           </div>
 
-          <div className="bg-white border border-black/10 rounded-[32px] p-8 shadow-sm">
-            <h3 className="text-2xl font-bold text-black mb-8 leading-tight">
+          <div className="bg-white border border-black/10 rounded-[24px] md:rounded-[32px] p-6 md:p-10 shadow-sm">
+            <h3 className="text-xl md:text-2xl font-bold text-black mb-6 md:mb-8 leading-tight">
               {questions[currentIndex].question}
             </h3>
             
@@ -678,7 +711,7 @@ function QuizView({ userId }: { userId: string }) {
                     onClick={() => handleAnswer(option)}
                     disabled={!!selectedOption}
                     className={cn(
-                      "w-full p-4 rounded-2xl text-left font-medium transition-all border flex items-center justify-between group",
+                      "w-full p-4 rounded-xl md:rounded-2xl text-left text-sm md:text-base font-medium transition-all border flex items-center justify-between group",
                       !selectedOption && "hover:border-black hover:bg-black/5 border-black/10",
                       selectedOption && isCorrect && "bg-brand/20 border-brand text-black",
                       selectedOption && isSelected && !isCorrect && "bg-red-50 border-red-200 text-red-600",
@@ -698,13 +731,13 @@ function QuizView({ userId }: { userId: string }) {
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-black/5 rounded-[32px] p-8"
+              className="bg-black/5 rounded-[24px] md:rounded-[32px] p-6 md:p-8"
             >
-              <div className="flex items-center gap-2 text-black/40 mb-2 font-bold uppercase tracking-widest text-xs">
+              <div className="flex items-center gap-2 text-black/40 mb-2 font-bold uppercase tracking-widest text-[10px] md:text-xs">
                 <BrainCircuit size={14} />
                 Explanation
               </div>
-              <p className="text-black/80 leading-relaxed">
+              <p className="text-black/80 leading-relaxed text-sm md:text-base">
                 {questions[currentIndex].explanation}
               </p>
             </motion.div>
@@ -765,69 +798,73 @@ function MatchingView() {
   }, [selectedIndo, selectedEng, pairs]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="text-center space-y-4 mb-12">
-        <h2 className="text-4xl font-bold tracking-tight text-black">Matching Game</h2>
-        <p className="text-xl text-black/40 font-medium">Connect words and phrases to build your vocabulary.</p>
+    <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
+      <div className="text-center space-y-2 md:space-y-4 mb-8 md:mb-12">
+        <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-black">Matching Game</h2>
+        <p className="text-base md:text-xl text-black/40 font-medium">Connect words and phrases to build your vocabulary.</p>
       </div>
 
       {pairs.length === 0 ? (
-        <div className="bg-white border border-black/10 rounded-[32px] p-8 shadow-sm space-y-6 max-w-xl mx-auto">
+        <div className="bg-white border border-black/10 rounded-[24px] md:rounded-[32px] p-6 md:p-8 shadow-sm space-y-6 max-w-xl mx-auto">
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-black/40">Enter Game Theme</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Enter Game Theme</label>
             <input 
               type="text"
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               placeholder="e.g., Household Items, Emotions, Slang..."
-              className="w-full p-4 bg-black/5 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-brand"
+              className="w-full p-3 md:p-4 bg-black/5 rounded-xl md:rounded-2xl text-base md:text-lg focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
           <button 
             onClick={generateMatching}
             disabled={loading || !theme.trim()}
-            className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-black/80 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 md:py-4 bg-black text-white rounded-xl md:rounded-2xl font-bold hover:bg-black/80 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Puzzle size={20} />}
             Start Game
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-12">
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-black/40 mb-4 px-2">Indonesian</h4>
-            {shuffledIndo.map((indo, idx) => (
-              <button 
-                key={idx}
-                onClick={() => !matches[indo] && setSelectedIndo(indo)}
-                className={cn(
-                  "w-full p-4 rounded-2xl text-left font-medium transition-all border",
-                  matches[indo] ? "bg-brand/10 border-brand/20 text-black/30 line-through" : 
-                  selectedIndo === indo ? "bg-black text-white border-black" : "bg-white border-black/10 hover:border-black"
-                )}
-              >
-                {indo}
-              </button>
-            ))}
-          </div>
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-black/40 mb-4 px-2">English</h4>
-            {shuffledEng.map((eng, idx) => {
-              const isMatched = Object.values(matches).includes(eng);
-              return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+          <div className="space-y-2 md:space-y-3">
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-2 md:mb-4 px-2">Indonesian</h4>
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-3">
+              {shuffledIndo.map((indo, idx) => (
                 <button 
                   key={idx}
-                  onClick={() => !isMatched && setSelectedEng(eng)}
+                  onClick={() => !matches[indo] && setSelectedIndo(indo)}
                   className={cn(
-                    "w-full p-4 rounded-2xl text-left font-medium transition-all border",
-                    isMatched ? "bg-brand/10 border-brand/20 text-black/30 line-through" : 
-                    selectedEng === eng ? "bg-black text-white border-black" : "bg-white border-black/10 hover:border-black"
+                    "w-full p-3 md:p-4 rounded-xl md:rounded-2xl text-left text-sm md:text-base font-medium transition-all border",
+                    matches[indo] ? "bg-brand/10 border-brand/20 text-black/30 line-through" : 
+                    selectedIndo === indo ? "bg-black text-white border-black" : "bg-white border-black/10 hover:border-black"
                   )}
                 >
-                  {eng}
+                  {indo}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2 md:space-y-3">
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-2 md:mb-4 px-2">English</h4>
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-2 md:gap-3">
+              {shuffledEng.map((eng, idx) => {
+                const isMatched = Object.values(matches).includes(eng);
+                return (
+                  <button 
+                    key={idx}
+                    onClick={() => !isMatched && setSelectedEng(eng)}
+                    className={cn(
+                      "w-full p-3 md:p-4 rounded-xl md:rounded-2xl text-left text-sm md:text-base font-medium transition-all border",
+                      isMatched ? "bg-brand/10 border-brand/20 text-black/30 line-through" : 
+                      selectedEng === eng ? "bg-black text-white border-black" : "bg-white border-black/10 hover:border-black"
+                    )}
+                  >
+                    {eng}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -836,15 +873,15 @@ function MatchingView() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center py-8"
+          className="text-center py-6 md:py-8"
         >
-          <h3 className="text-2xl font-bold mb-4">Well Done! You matched them all.</h3>
+          <h3 className="text-xl md:text-2xl font-bold mb-4">Well Done! You matched them all.</h3>
           <button 
             onClick={() => {
               setPairs([]);
               setTheme('');
             }}
-            className="px-8 py-3 bg-brand text-black rounded-2xl font-bold hover:bg-brand-dark transition-colors"
+            className="px-6 md:px-8 py-2.5 md:py-3 bg-brand text-black rounded-xl md:rounded-2xl font-bold hover:bg-brand-dark transition-colors"
           >
             Play Again
           </button>
@@ -873,54 +910,54 @@ function ProgressView({ userId }: { userId: string }) {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-4xl mx-auto space-y-12"
+      className="max-w-4xl mx-auto space-y-8 md:space-y-12"
     >
-      <div className="text-center space-y-4">
-        <h2 className="text-4xl font-bold tracking-tight text-black">Your Progress</h2>
-        <p className="text-xl text-black/40 font-medium">Track your journey to English fluency.</p>
+      <div className="text-center space-y-2 md:space-y-4">
+        <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-black">Your Progress</h2>
+        <p className="text-base md:text-xl text-black/40 font-medium">Track your journey to English fluency.</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="bg-brand/10 border border-brand/20 rounded-[32px] p-8 text-center">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="bg-brand/10 border border-brand/20 rounded-[24px] md:rounded-[32px] p-6 md:p-8 text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark mb-2">Average Score</p>
-          <p className="text-5xl font-bold text-black">{averageScore}%</p>
+          <p className="text-3xl md:text-5xl font-bold text-black">{averageScore}%</p>
         </div>
-        <div className="bg-black/5 rounded-[32px] p-8 text-center">
+        <div className="bg-black/5 rounded-[24px] md:rounded-[32px] p-6 md:p-8 text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-2">Quizzes Taken</p>
-          <p className="text-5xl font-bold text-black">{scores.length}</p>
+          <p className="text-3xl md:text-5xl font-bold text-black">{scores.length}</p>
         </div>
-        <div className="bg-black/5 rounded-[32px] p-8 text-center">
+        <div className="bg-black/5 rounded-[24px] md:rounded-[32px] p-6 md:p-8 text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 mb-2">Total Points</p>
-          <p className="text-5xl font-bold text-black">{scores.reduce((acc, curr) => acc + curr.score, 0)}</p>
+          <p className="text-3xl md:text-5xl font-bold text-black">{scores.reduce((acc, curr) => acc + curr.score, 0)}</p>
         </div>
       </div>
 
-      <div className="space-y-6">
-        <h3 className="text-xl font-bold px-4">Quiz History</h3>
+      <div className="space-y-4 md:space-y-6">
+        <h3 className="text-lg md:text-xl font-bold px-2 md:px-4">Quiz History</h3>
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-black/10 border-t-black rounded-full animate-spin" />
           </div>
         ) : scores.length === 0 ? (
-          <div className="text-center py-20 bg-black/5 rounded-[32px] border border-dashed border-black/10">
+          <div className="text-center py-12 md:py-20 bg-black/5 rounded-[24px] md:rounded-[32px] border border-dashed border-black/10">
             <BrainCircuit size={48} className="mx-auto text-black/20 mb-4" />
-            <p className="text-black/40 font-medium">No quiz scores yet. Take a quiz to see your progress!</p>
+            <p className="text-black/40 font-medium px-4">No quiz scores yet. Take a quiz to see your progress!</p>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="grid gap-3 md:gap-4">
             {scores.map((score) => (
-              <div key={score.id} className="bg-white border border-black/10 rounded-[24px] p-6 flex items-center justify-between">
+              <div key={score.id} className="bg-white border border-black/10 rounded-[20px] md:rounded-[24px] p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <p className="text-sm font-bold text-black/40 uppercase tracking-widest">{new Date(score.timestamp).toLocaleDateString()}</p>
-                  <p className="text-lg font-bold text-black">{score.theme}</p>
+                  <p className="text-[10px] md:text-sm font-bold text-black/40 uppercase tracking-widest">{new Date(score.timestamp).toLocaleDateString()}</p>
+                  <p className="text-base md:text-lg font-bold text-black">{score.theme}</p>
                 </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-black">{score.score} / {score.total}</p>
-                    <p className="text-xs font-bold text-brand-dark uppercase tracking-widest">Score</p>
+                <div className="flex items-center justify-between sm:justify-end gap-6">
+                  <div className="text-left sm:text-right">
+                    <p className="text-xl md:text-2xl font-bold text-black">{score.score} / {score.total}</p>
+                    <p className="text-[10px] md:text-xs font-bold text-brand-dark uppercase tracking-widest">Score</p>
                   </div>
-                  <div className="w-12 h-12 rounded-full border-4 border-brand/20 flex items-center justify-center">
-                    <span className="text-xs font-bold">{(score.score / score.total * 100).toFixed(0)}%</span>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full border-4 border-brand/20 flex items-center justify-center shrink-0">
+                    <span className="text-[10px] md:text-xs font-bold">{(score.score / score.total * 100).toFixed(0)}%</span>
                   </div>
                 </div>
               </div>
