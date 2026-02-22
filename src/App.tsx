@@ -570,19 +570,16 @@ function TranslateView({ userId, sessionId, onSessionCreated }: { userId: string
 function QuizView({ userId }: { userId: string }) {
   const [theme, setTheme] = useState('');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [showResult, setShowResult] = useState(false);
-  const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const generateQuiz = async () => {
     if (!theme.trim()) return;
     setLoading(true);
     setQuestions([]);
-    setCurrentIndex(0);
+    setUserAnswers({});
     setShowResult(false);
-    setScore(0);
     
     try {
       const response = await ai.models.generateContent({
@@ -603,27 +600,27 @@ function QuizView({ userId }: { userId: string }) {
     }
   };
 
-  const handleAnswer = async (option: string) => {
-    if (selectedOption) return;
-    setSelectedOption(option);
-    let newScore = score;
-    if (option === questions[currentIndex].correctAnswer) {
-      newScore = score + 1;
-      setScore(newScore);
-    }
-    
-    setTimeout(async () => {
-      if (currentIndex < questions.length - 1) {
-        setCurrentIndex(i => i + 1);
-        setSelectedOption(null);
-      } else {
-        setShowResult(true);
-        await saveQuizScore(userId, theme, newScore, questions.length);
-      }
-    }, 2000);
+  const handleAnswer = (questionIndex: number, option: string) => {
+    if (userAnswers[questionIndex]) return;
+    setUserAnswers(prev => ({ ...prev, [questionIndex]: option }));
+  };
+
+  const calculateScore = () => {
+    return Object.entries(userAnswers).reduce((acc, [idx, ans]) => {
+      return ans === questions[Number(idx)].correctAnswer ? acc + 1 : acc;
+    }, 0);
+  };
+
+  const handleFinish = async () => {
+    const finalScore = calculateScore();
+    setShowResult(true);
+    await saveQuizScore(userId, theme, finalScore, questions.length);
+    // Scroll to top to see results
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (showResult) {
+    const finalScore = calculateScore();
     return (
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
@@ -634,12 +631,14 @@ function QuizView({ userId }: { userId: string }) {
           <Sparkles size={48} />
         </div>
         <h2 className="text-4xl font-bold">Quiz Completed!</h2>
-        <p className="text-xl text-black/60">You scored {score} out of {questions.length}</p>
+        <p className="text-xl text-black/60">You scored {finalScore} out of {questions.length}</p>
         <div className="flex justify-center gap-4">
           <button 
             onClick={() => {
               setQuestions([]);
               setTheme('');
+              setUserAnswers({});
+              setShowResult(false);
             }}
             className="px-8 py-3 bg-black text-white rounded-2xl font-bold hover:bg-black/80 transition-colors"
           >
@@ -651,7 +650,7 @@ function QuizView({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
+    <div className="max-w-4xl mx-auto space-y-6 md:space-y-8 pb-20">
       <div className="text-center space-y-2 md:space-y-4 mb-8 md:mb-12">
         <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-black">Quiz Practice</h2>
         <p className="text-base md:text-xl text-black/40 font-medium">Master English through interactive challenges.</p>
@@ -679,70 +678,83 @@ function QuizView({ userId }: { userId: string }) {
           </button>
         </div>
       ) : (
-        <motion.div 
-          key={currentIndex}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="space-y-6"
-        >
-          <div className="flex items-center justify-between mb-4 px-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-black/40">Question {currentIndex + 1} of {questions.length}</span>
-            <div className="h-1.5 w-24 md:w-32 bg-black/5 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-brand transition-all duration-500" 
-                style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="bg-white border border-black/10 rounded-[24px] md:rounded-[32px] p-6 md:p-10 shadow-sm">
-            <h3 className="text-xl md:text-2xl font-bold text-black mb-6 md:mb-8 leading-tight">
-              {questions[currentIndex].question}
-            </h3>
-            
-            <div className="grid gap-3">
-              {questions[currentIndex].options.map((option, idx) => {
-                const isCorrect = option === questions[currentIndex].correctAnswer;
-                const isSelected = option === selectedOption;
-                
-                return (
-                  <button 
-                    key={idx}
-                    onClick={() => handleAnswer(option)}
-                    disabled={!!selectedOption}
-                    className={cn(
-                      "w-full p-4 rounded-xl md:rounded-2xl text-left text-sm md:text-base font-medium transition-all border flex items-center justify-between group",
-                      !selectedOption && "hover:border-black hover:bg-black/5 border-black/10",
-                      selectedOption && isCorrect && "bg-brand/20 border-brand text-black",
-                      selectedOption && isSelected && !isCorrect && "bg-red-50 border-red-200 text-red-600",
-                      selectedOption && !isSelected && !isCorrect && "opacity-50 border-black/5"
-                    )}
-                  >
-                    <span>{option}</span>
-                    {selectedOption && isCorrect && <CheckCircle2 size={20} className="text-brand-dark" />}
-                    {selectedOption && isSelected && !isCorrect && <XCircle size={20} className="text-red-500" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {selectedOption && (
+        <div className="space-y-12">
+          {questions.map((q, qIdx) => (
             <motion.div 
-              initial={{ opacity: 0, y: 10 }}
+              key={qIdx}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-black/5 rounded-[24px] md:rounded-[32px] p-6 md:p-8"
+              transition={{ delay: qIdx * 0.1 }}
+              className="space-y-6"
             >
-              <div className="flex items-center gap-2 text-black/40 mb-2 font-bold uppercase tracking-widest text-[10px] md:text-xs">
-                <BrainCircuit size={14} />
-                Explanation
+              <div className="flex items-center justify-between mb-4 px-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-black/40">Question {qIdx + 1} of {questions.length}</span>
               </div>
-              <p className="text-black/80 leading-relaxed text-sm md:text-base">
-                {questions[currentIndex].explanation}
-              </p>
+
+              <div className="bg-white border border-black/10 rounded-[24px] md:rounded-[32px] p-6 md:p-10 shadow-sm">
+                <h3 className="text-xl md:text-2xl font-bold text-black mb-6 md:mb-8 leading-tight">
+                  {q.question}
+                </h3>
+                
+                <div className="grid gap-3">
+                  {q.options.map((option, oIdx) => {
+                    const isCorrect = option === q.correctAnswer;
+                    const isSelected = option === userAnswers[qIdx];
+                    const hasAnswered = !!userAnswers[qIdx];
+                    
+                    return (
+                      <button 
+                        key={oIdx}
+                        onClick={() => handleAnswer(qIdx, option)}
+                        disabled={hasAnswered}
+                        className={cn(
+                          "w-full p-4 rounded-xl md:rounded-2xl text-left text-sm md:text-base font-medium transition-all border flex items-center justify-between group",
+                          !hasAnswered && "hover:border-black hover:bg-black/5 border-black/10",
+                          hasAnswered && isCorrect && "bg-brand/20 border-brand text-black",
+                          hasAnswered && isSelected && !isCorrect && "bg-red-50 border-red-200 text-red-600",
+                          hasAnswered && !isSelected && !isCorrect && "opacity-50 border-black/5"
+                        )}
+                      >
+                        <span>{option}</span>
+                        {hasAnswered && isCorrect && <CheckCircle2 size={20} className="text-brand-dark" />}
+                        {hasAnswered && isSelected && !isCorrect && <XCircle size={20} className="text-red-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {userAnswers[qIdx] && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-black/5 rounded-[24px] md:rounded-[32px] p-6 md:p-8"
+                >
+                  <div className="flex items-center gap-2 text-black/40 mb-2 font-bold uppercase tracking-widest text-[10px] md:text-xs">
+                    <BrainCircuit size={14} />
+                    Explanation
+                  </div>
+                  <p className="text-black/80 leading-relaxed text-sm md:text-base">
+                    {q.explanation}
+                  </p>
+                </motion.div>
+              )}
             </motion.div>
+          ))}
+
+          <div className="pt-8 flex justify-center">
+            <button 
+              onClick={handleFinish}
+              disabled={Object.keys(userAnswers).length < questions.length}
+              className="px-12 py-4 bg-brand text-black rounded-2xl font-bold hover:bg-brand-dark transition-all shadow-xl shadow-brand/20 disabled:opacity-50 disabled:shadow-none"
+            >
+              Finish & Save Results
+            </button>
+          </div>
+          {Object.keys(userAnswers).length < questions.length && (
+            <p className="text-center text-xs text-black/40 font-medium">Please answer all questions to finish.</p>
           )}
-        </motion.div>
+        </div>
       )}
     </div>
   );
