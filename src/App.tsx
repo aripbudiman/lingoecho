@@ -25,7 +25,9 @@ import {
   XCircle,
   ArrowRight,
   TrendingUp,
-  LogIn
+  LogIn,
+  X,
+  ArrowLeftRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -371,6 +373,117 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Floating Quick Translator */}
+      <QuickTranslator />
+    </div>
+  );
+}
+
+function QuickTranslator() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [result, setResult] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isEnToId, setIsEnToId] = useState(true);
+
+  const handleTranslate = async () => {
+    if (!text.trim()) return;
+    setLoading(true);
+    try {
+      const prompt = isEnToId 
+        ? `Translate this English text to Indonesian. Return ONLY the translation text: "${text}"`
+        : `Translate this Indonesian text to English. Return ONLY the translation text: "${text}"`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+      
+      setResult(response.text || '');
+    } catch (error) {
+      console.error(error);
+      setResult('Error translating...');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed bottom-6 right-6 z-[100]">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="absolute bottom-20 right-0 w-[320px] bg-white rounded-[24px] shadow-2xl border border-black/10 overflow-hidden flex flex-col text-black"
+          >
+            <div className="p-4 bg-black text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Languages size={18} className="text-brand" />
+                <span className="font-bold text-sm">Quick Translator</span>
+              </div>
+              <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between bg-black/5 p-2 rounded-xl">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-black/40 px-2">
+                  {isEnToId ? 'English' : 'Indonesian'}
+                </span>
+                <button 
+                  onClick={() => setIsEnToId(!isEnToId)}
+                  className="p-1.5 bg-white rounded-lg shadow-sm hover:bg-brand transition-colors"
+                >
+                  <ArrowLeftRight size={14} />
+                </button>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-black/40 px-2 text-right">
+                  {isEnToId ? 'Indonesian' : 'English'}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Type word or phrase..."
+                  className="w-full p-3 bg-black/5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand resize-none text-black placeholder:text-black/30"
+                  rows={3}
+                />
+                <button
+                  onClick={handleTranslate}
+                  disabled={loading || !text.trim()}
+                  className="w-full py-2.5 bg-black text-white rounded-xl font-bold text-sm hover:bg-black/80 transition-all disabled:opacity-50"
+                >
+                  {loading ? 'Translating...' : 'Translate'}
+                </button>
+              </div>
+
+              {result && (
+                <div className="p-3 bg-brand/10 border border-brand/20 rounded-xl">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-dark mb-1">Result</p>
+                  <p className="text-sm font-medium text-black">{result}</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all",
+          isOpen ? "bg-black text-white" : "bg-brand text-black"
+        )}
+      >
+        {isOpen ? <X size={24} /> : <Languages size={24} />}
+      </motion.button>
     </div>
   );
 }
